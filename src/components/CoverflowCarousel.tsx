@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const images = [
@@ -58,15 +58,20 @@ function getCardProps(offset: number) {
   return { x, scale, rotateY, zIndex, opacity, shadow, isVisible, isCenter };
 }
 
+// Map a virtual position to an actual image index (handles negative numbers correctly)
+function getImageIndex(virtualPos: number, total: number): number {
+  return ((virtualPos % total) + total) % total;
+}
+
 export default function CoverflowCarousel() {
-  const [currentIndex, setCurrentIndex] = useState(2);
+  const [virtualIndex, setVirtualIndex] = useState(0);
 
   const handlePrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+    setVirtualIndex((prev) => prev - 1);
   }, []);
 
   const handleNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % images.length);
+    setVirtualIndex((prev) => prev + 1);
   }, []);
 
   // Keyboard navigation
@@ -78,6 +83,18 @@ export default function CoverflowCarousel() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrev, handleNext]);
+
+  // Generate virtual card positions to render (only the visible window)
+  const visiblePositions = useMemo(() => {
+    const positions: number[] = [];
+    for (let i = -VISIBLE_RANGE; i <= VISIBLE_RANGE; i++) {
+      positions.push(virtualIndex + i);
+    }
+    return positions;
+  }, [virtualIndex]);
+
+  // Current actual image index for dot indicators
+  const currentImageIndex = getImageIndex(virtualIndex, images.length);
 
   return (
     <div className="relative flex items-center justify-center w-full h-screen bg-gradient-to-b from-[#e4e4e4] to-[#c9cbcf] overflow-hidden select-none">
@@ -108,55 +125,61 @@ export default function CoverflowCarousel() {
           height: `${CARD_HEIGHT}px`,
         }}
       >
-        {images.map((image, index) => {
-          const offset = index - currentIndex;
-          const { x, scale, rotateY, zIndex, opacity, shadow, isVisible, isCenter } =
-            getCardProps(offset);
+        <AnimatePresence mode="popLayout">
+          {visiblePositions.map((pos) => {
+            const offset = pos - virtualIndex;
+            const imageIndex = getImageIndex(pos, images.length);
+            const image = images[imageIndex];
+            const { x, scale, rotateY, zIndex, opacity, shadow, isVisible, isCenter } =
+              getCardProps(offset);
 
-          return (
-            <motion.div
-              key={image.id}
-              className="absolute rounded-xl overflow-hidden"
-              animate={{
-                x,
-                scale,
-                rotateY,
-                opacity,
-              }}
-              transition={{
-                type: 'spring',
-                stiffness: 300,
-                damping: 30,
-                mass: 0.8,
-              }}
-              onClick={() => {
-                if (!isCenter) setCurrentIndex(index);
-              }}
-              style={{
-                width: `${CARD_WIDTH}px`,
-                height: `${CARD_HEIGHT}px`,
-                zIndex,
-                boxShadow: shadow,
-                transformStyle: 'preserve-3d',
-                backfaceVisibility: 'hidden',
-                cursor: isCenter ? 'default' : 'pointer',
-                filter: isCenter
-                  ? 'brightness(1) blur(0px)'
-                  : isVisible
-                    ? 'brightness(0.8) blur(0px)'
-                    : 'brightness(0.6) blur(2px)',
-                transition: 'filter 0.3s ease, box-shadow 0.3s ease',
-              }}
-            >
-              <img
-                src={image.src}
-                alt={image.alt}
-                className="w-full h-full object-cover pointer-events-none"
-                draggable={false}
-              />
-            </motion.div>
-          );
-        })}
+            return (
+              <motion.div
+                key={pos}
+                layout
+                className="absolute rounded-xl overflow-hidden"
+                initial={false}
+                animate={{
+                  x,
+                  scale,
+                  rotateY,
+                  opacity,
+                }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 300,
+                  damping: 30,
+                  mass: 0.8,
+                }}
+                onClick={() => {
+                  if (!isCenter) setVirtualIndex(pos);
+                }}
+                style={{
+                  width: `${CARD_WIDTH}px`,
+                  height: `${CARD_HEIGHT}px`,
+                  zIndex,
+                  boxShadow: shadow,
+                  transformStyle: 'preserve-3d',
+                  backfaceVisibility: 'hidden',
+                  cursor: isCenter ? 'default' : 'pointer',
+                  filter: isCenter
+                    ? 'brightness(1) blur(0px)'
+                    : isVisible
+                      ? 'brightness(0.8) blur(0px)'
+                      : 'brightness(0.6) blur(2px)',
+                  transition: 'filter 0.3s ease, box-shadow 0.3s ease',
+                }}
+              >
+                <img
+                  src={image.src}
+                  alt={image.alt}
+                  className="w-full h-full object-cover pointer-events-none"
+                  draggable={false}
+                />
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
 
       {/* Dot Indicators */}
@@ -164,9 +187,17 @@ export default function CoverflowCarousel() {
         {images.map((_, index) => (
           <button
             key={index}
-            onClick={() => setCurrentIndex(index)}
+            onClick={() => {
+              // Calculate the shortest path to the target image
+              const currentMod = currentImageIndex;
+              let diff = index - currentMod;
+              // Choose the shortest direction
+              if (diff > images.length / 2) diff -= images.length;
+              if (diff < -images.length / 2) diff += images.length;
+              setVirtualIndex((prev) => prev + diff);
+            }}
             className={`rounded-full transition-all duration-300 cursor-pointer ${
-              index === currentIndex
+              index === currentImageIndex
                 ? 'w-8 h-2.5 bg-gray-700'
                 : 'w-2.5 h-2.5 bg-gray-400/60 hover:bg-gray-500/80'
             }`}

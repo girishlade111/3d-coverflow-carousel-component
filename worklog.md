@@ -24,3 +24,23 @@ Stage Summary:
 - Page updated to render the carousel as the main content
 - All visual requirements met: 3D rotation, scaling, shadows, gradient background
 - Keyboard navigation and dot indicators added for better UX
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Implement infinite scrolling for the coverflow carousel
+
+Work Log:
+- Changed from bounded index with modulo wrapping to an unbounded virtual index
+- Virtual index can increment/decrement infinitely (no modulo on the index itself)
+- Only modulo is used to map virtual positions to actual image indices via getImageIndex()
+- Render only the visible window of cards (5 positions around current index) instead of all images
+- Each card uses its virtual position as the React key, enabling smooth animations
+- Added AnimatePresence with popLayout mode for enter/exit animations
+- Dot indicators use shortest-path calculation to navigate (handles wrap-around direction)
+- No more visual "jump" when transitioning from last to first image or vice versa
+
+Stage Summary:
+- Infinite scrolling implemented — cards smoothly slide in one direction endlessly
+- Virtual index system allows seamless looping without position resets
+- Dot indicators navigate via shortest path for intuitive UX
