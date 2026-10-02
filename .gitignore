@@ -52,3 +52,6 @@ prompt
 server.log
 # Skills directory
 /skills/
+# local npm artifacts (repo uses bun)
+package-lock.json
+next-env.d.ts
